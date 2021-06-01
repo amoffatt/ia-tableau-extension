@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="en">
+<!--  ©2021 Virtual Cove, Inc. d/b/a Immersion Analytics. All Rights Reserved. Patented. -->
+
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, shrink-to-fit=no">
+    <title>IA Web Extension UI v0.1</title>
+    <link rel="stylesheet" href="bootstrap/css/bootstrap.min.css">
+    <link rel="stylesheet" href="fonts/ionicons.min.css">
+    <link rel="stylesheet" href="fonts/material-icons.min.css">
+    <link rel="stylesheet" href="https://cdn.datatables.net/1.10.24/css/jquery.dataTables.css">
+    <link rel="stylesheet" href="css/styles.css">
+
+    <!-- These two libraries are copied from the download builder here: https://datatables.net/download/ -->
+    <!--    <link rel="stylesheet" type="text/css" href="https://cdn.datatables.net/v/bs4-4.1.1/jq-3.3.1/dt-1.10.18/b-1.5.6/b-colvis-1.5.6/cr-1.5.0/fh-3.1.4/r-2.2.2/sc-2.0.0/datatables.min.css" />-->
+    <!--    <script type="text/javascript" src="https://cdn.datatables.net/v/bs4-4.1.1/jq-3.3.1/dt-1.10.18/b-1.5.6/b-colvis-1.5.6/cr-1.5.0/fh-3.1.4/r-2.2.2/sc-2.0.0/datatables.min.js">-->
+    <!--    </script>-->
+</head>
+
+<body>
+    <div id="ia-main" class="flex-row" style="width: 100%;background: #ffffff;height: 50vh;">
+        <div class="container-fluid text-right d-flex justify-content-between" id="ia-header">
+            <div class="d-flex align-items-center" id="ia-connect-overview"><button class="btn btn-primary d-xl-flex align-items-xl-center" type="button" data-target="#ia-connect-modal" data-toggle="modal"><i class="material-icons">cast_connected</i><span>&nbsp;Configure Connection</span></button>
+                <div style="margin: 0 1em;"><span>Connection Status:&nbsp;</span><span class="ia-connect-status-value"></span></div>
+            </div><img class="\" src="img/ia-logo-and-text.png" width="150px" style="height: 100%;">
+        </div>
+        <div class="container-fluid">
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th colspan="2">
+                            <div class="dropdown d-inline-block" id="ia-viz-select">
+                                <button class="btn btn-primary dropdown-toggle ia-viz-name" aria-expanded="false" data-toggle="dropdown" type="button">&nbsp;</button>
+                                <div class="dropdown-menu"></div>
+                            </div>
+                            <button class="btn btn-primary add-btn icon-btn" id="ia-new-viz" type="button"><i class="icon ion-plus"></i></button>
+                            <button class="btn btn-primary remove-btn icon-btn" id="ia-remove-viz" type="button"><i class="icon ion-close-circled"></i></button>
+                        </th>
+                    </tr>
+                </thead>
+                <tbody class="ia-viz-info">
+                    <tr>
+                        <td>Visualization Name:</td>
+                        <td>
+                            <input type="text" class="ia-viz-name"/>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td>Visualization Data Source:</td>
+                        <td>
+                            <div class="dropdown" id="ia-datasource-select">
+                                <button class="btn btn-block btn-primary dropdown-toggle" aria-expanded="false" data-toggle="dropdown" type="button"></button>
+                                <div class="dropdown-menu">
+        <!--                            <a class="dropdown-item" href="#">First Item</a>-->
+                                </div>
+                            </div>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td>Point Size:</td>
+                        <td>
+                            <input type="range" class="custom-range ia-point-size" min=".01" max=".15" step=".001" />
+                        </td>
+                    </tr>
+                    <td>Colormap:</td>
+                    <td>
+                        <div class="dropdown ia-viz-colormap">
+                            <button class="btn btn-block dropdown-toggle" aria-expanded="false" data-toggle="dropdown" type="button"></button>
+                            <div class="dropdown-menu"></div>
+                        </div>
+                    </td>
+                </tbody>
+            </table>
+            <div class="table-responsive ia-viz-info" id="ia-axis-mappings">
+                <table class="table">
+                    <thead>
+                        <tr>
+
+    <!--                        <th></th>-->
+                            <th>Axis</th>
+                            <th>Variable</th>
+                        </tr>
+                    </thead>
+                </table>
+            </div>
+        </div>
+    </div>
+    <div class="modal fade" role="dialog" tabindex="-1" id="ia-connect-modal">
+        <div class="modal-dialog modal-xl modal-dialog-centered" role="document">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h4 class="modal-title">Connection</h4><button type="button" class="close" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">×</span></button>
+                </div>
+                <div class="modal-body">
+                    <div class="table-responsive">
+                        <table class="table">
+                            <thead>
+                                <tr>
+                                    <th colspan="2">Runtime Server</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td>Address/Url</td>
+                                    <td class="d-flex align-items-center">
+                                        <input type="text" class="ia-server-address">
+                                        <div class="dropdown text-input-with-dropdown" id="ia-server-select">
+                                            <button class="btn btn-primary dropdown-toggle" aria-expanded="false" data-toggle="dropdown" type="button"></button>
+                                            <div class="dropdown-menu">
+                                                <a class="dropdown-item" href="#">ws://localhost:11700</a>
+                                                <a class="dropdown-item" href="#">ws://localhost:11701</a>
+                                            </div>
+                                        </div>
+                                        <button class="btn btn-primary refresh-btn icon-btn ia-reconnect-btn ml-2" type="button"><i class="icon ion-refresh"></i></button>
+                                    </td>
+                                </tr>
+                                <tr class="connected-row">
+                                    <td></td>
+<!--                                    <td><span>Server Status:&nbsp;</span><span class="ia-lobby-status-value">&lt;Status Text&gt;&nbsp;</span></td>-->
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    <div class="table-responsive room-settings">
+                        <table class="table">
+                            <thead>
+                                <tr>
+                                    <th colspan="2">Collaboration Room</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td>Room Name</td>
+                                    <td><input type="text" class="ia-room-name"></td>
+                                </tr>
+                                <tr>
+                                    <td>Room Password (optional)</td>
+                                    <td id="ia-room-pw"><input type="password"></td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                <div class="modal-footer d-flex justify-content-between">
+                    <div>
+                        <span>Connection Status:&nbsp;</span><span class="ia-connect-status-value"></span>
+                    </div>
+                    <div>
+                        <button class="btn btn-light ia-connect-btn" type="button">Join or Create Room</button>
+                        <button class="btn btn-light" type="button" data-dismiss="modal">Close</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div role="dialog" tabindex="-1" class="modal fade" id="pw-input-modal">
+        <div class="modal-dialog" role="document">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h4 class="modal-title">Enter Password</h4><button type="button" class="close" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">×</span></button>
+                </div>
+                <div class="modal-body">
+                    <p class="pw-msg">&lt;message&gt;</p>
+                    <form class="form-inline">
+                        <div class="form-group"><label>Password: </label><input type="password" class="form-control pw-input" /></div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-light" type="button" data-dismiss="modal">Cancel</button>
+                    <button class="btn btn-primary" type="button">Submit</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    <script src="js/jquery.min.js"></script>
+    <script src="bootstrap/js/bootstrap.min.js"></script>
+
+    <!-- Include the Tableau Extensions library so we can communicate with Tableau -->
+    <script src="js/tableau.extensions.1.latest.js"></script>
+
+
+    <!-- Blazor framework is required by the IA Runtime API -->
+    <script src="_framework/blazor.webassembly.js"></script>
+    <!-- Include the IA Runtime API for communicating with AR/VR/XR devices and displaying high-dimensional visualizations -->
+    <script src="_framework/iaruntime.js"></script>
+
+    <script src="https://cdn.datatables.net/1.10.24/js/jquery.dataTables.js"></script>
+    <script src="js/ia-ext.js"></script>
+
+
+
+</body>
+
+</html>

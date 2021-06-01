@@ -1,0 +1,117 @@
+body {
+  font-size: 11px;
+}
+
+.btn {
+  font-size: 12px;
+  line-height: 1.2;
+}
+
+.btn span {
+  vertical-align: middle;
+  margin-bottom: -2px;
+  display: inline-block;
+}
+
+.btn .material-icons {
+  font-size: 1.5em;
+  vertical-align: middle;
+}
+
+.ia-template {
+  display: none;
+}
+
+.table td, .table th{
+  padding: .4rem .6rem;
+  vertical-align: middle;
+}
+
+.text-input-with-dropdown button {
+  padding: 0 .7em;
+  border-radius: 0 5px 5px 0;
+  line-height: 1.95em;
+}
+
+.text-input-with-dropdown input {
+  border-radius: 5px 0 0 5px;
+}
+
+input[type="text"], input[type="password"] {
+  border: none;
+  border-bottom: .5px solid #bbb;
+  border-radius: 0;
+  line-height: 2em;
+}
+
+#ia-connection-modal {
+  /*width: 90%;*/
+}
+
+@media (min-width:576px) {
+  .modal-dialog-centered {
+    min-height: calc(100% - 3.5rem);
+  }
+}
+
+@media (min-width:768px) {
+  .modal-xl {
+    max-width: 90%;
+  }
+}
+
+#ia-header {
+  margin: 0px;
+  border-bottom: 1px solid #aaa;
+  margin-bottom: 20px;
+}
+
+.icon-btn {
+  background: none;
+  color: black;
+  border: none;
+  font-size: 24px;
+  padding: 0 4px;
+  line-height: 1;
+}
+
+.add-btn {
+  color: rgb(0,191,0);
+}
+
+.remove-btn {
+  color: red;
+  font-size: 22px;
+}
+
+.refresh-btn {
+  color: rgb(0,191,0);
+}
+
+/* Table row without boundary between itself and the row above */
+/*tr.connected-row {*/
+/*}*/
+
+tr.connected-row td {
+  border-top: none;
+  padding-top: 0px;
+}
+
+.form-inline .form-group {
+  flex-grow: 1;
+}
+.form-inline input {
+  flex-grow: 1;
+}
+
+.table input {
+    width: 100%;
+}
+
+.text-muted td {
+  color: #aaa;
+}
+
+#ia-axis-mappings .dataTables_filter {
+  float: right !important;
+}
