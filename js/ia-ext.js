@@ -5,6 +5,9 @@
  * Utilizes the Immersion Analytics Runtime javascript API and Tableau Dashboard Extensions API
  * to drive holographic visualizations in AR/VR/XR devices like Hololens2 or Oculus from a Tableau dashboard
  */
+
+const IA_MAX_ROWS_TO_LOAD = 2000
+
 class IAExt {
     constructor(integration)
     {
@@ -14,24 +17,26 @@ class IAExt {
         console.log("Initialize IA");
 
         // Create a new Immersion Analytics (IA) Runtime API client
-        this.ia = IA.CreateClient();
+        this.ia = IA.createClient();
+        this.scene = this.ia.scene;
+        this.database = this.ia.scene.database;
 
         //================================================
         // Initialize IA Runtime event listeners
         //================================================
-        this.ia.OnStateChanged(state => this._handleStateChanged(state));
-        this.ia.OnRoomPasswordRequired((uri, msg) => this._handleRoomPasswordRequired(uri, msg));
+        this.ia.onStateChanged(state => this._handleStateChanged(state));
+        this.ia.onRoomPasswordRequired((uri, msg) => this._handleRoomPasswordRequired(uri, msg));
 
         // Once the IA Scene synchronization between XR device and web browser is initialized this method will be called
-        this.ia.OnSyncReady(() => this._handleRoomConnectionReady());
+        this.ia.onSyncReady(() => this._handleRoomConnectionReady());
 
         // Update this Visualization list when Viz's are added or removed
-        this.ia.Scene.Visualizations.OnChanged(() => this._handleVizListChanged());
+        this.scene.visualizations.onChanged(() => this._handleVizListChanged());
         // Listen for Viz selection changes coming from the headset
-        this.ia.Scene.Selection.OnChanged(property => {
-            let viz = property.GetIndex(0);
+        this.scene.selection.onChanged(property => {
+            let viz = property.get(0);
             if (viz)
-                this.selectViz(viz.Name);
+                this.selectViz(viz.name);
         })
 
         //================================================
@@ -66,6 +71,8 @@ class IAExt {
         this._removeVizBtn = $('#ia-remove-viz');
         this._removeVizBtn.click(() => this.removeSelectedViz());
 
+        $('button.ia-reset-scene').click(() => this.confirmResetScene());
+
         //================================================
         // Controls and info about the currently selected IA viz
         //================================================
@@ -79,6 +86,11 @@ class IAExt {
         // Dropdown to select a datasource
         this._dataSourceSelect = $('#ia-datasource-select');
         this._dataSourceSelect.find('button').click(e => this._updateDataSourcesSelect());
+
+        this._datasetRowCountText = $('.ia-dataset-row-count');
+        this._datasetVariableCountText = $('.ia-dataset-var-count');
+
+        this.database.onChanged(() => this._updateSelectedDatasetInfo());
 
         // The Axis=>Variable mappings table for configuring high-dimensional visualizations
         this._axisMappingsPanel = $('#ia-axis-mappings');
@@ -113,7 +125,7 @@ class IAExt {
                 e => {
                     let dropdown = $(e.target).parents('.dropdown');
                     var axis = $this._axisMappingsTable.row(dropdown.parents('tr')).data();
-                    $this._updateVariableSelect(dropdown, axis.name);
+                    $this._updateVariableSelect(axis.name);
                 });
 
         // Viz point size
@@ -121,7 +133,7 @@ class IAExt {
             .on('input change', e => {
                 let value = parseFloat($(e.target).val());
                 if (isFinite(value))
-                    $this.ia.Scene.VizSettings.GetOrCreate().PointSize.Set(value);
+                    $this.ia.scene.vizSettings.pointSize = value;
             })
 
         // Viz colormap
@@ -131,7 +143,7 @@ class IAExt {
 
 
         //When a change in the IA Scene is detected
-        this.ia.Scene.OnChanged(e => {
+        this.ia.scene.onChanged(e => {
             // Needed to update the point size slider
             // When the user changes point size from within the headset
             if (e.sourceModel.modelType == 'VizSettings') {
@@ -148,6 +160,23 @@ class IAExt {
         this._updateSelectedVizInfo();
     }
 
+    _recordScrollPosition(overrideExisting)
+    {
+        // If a scroll position is already pending restore, don't overwrite it unless asked to
+        if (this._recordedScrollPosition && !overrideExisting)
+            return;
+
+        this._recordedScrollPosition = [window.scrollX, window.scrollY];
+    }
+    _restoreScrollPosition()
+    {
+        if (this._recordedScrollPosition)
+        {
+            window.scroll(...this._recordedScrollPosition);
+            this._recordedScrollPosition = undefined;
+        }
+    }
+
     /** Reconnect to the IA Runtime Lobby Server URI entered in the server address input */
     reconnectToLobby()
     {
@@ -159,18 +188,18 @@ class IAExt {
         * the IA runtime API will detect that and reconnect to it as
         * a room server
         */
-        this.ia.LobbyServerUri = address;
+        this.ia.connectToLobbyServer(address);
     }
 
     /** Update connection-related UI components when the IA Runtime connection state changes
      * Disable room settings inputs if already connected to a room
      */
     _handleStateChanged(state) {
-        let statusMessage = this.ia.ConnectionStatusMessage;
-        console.log("State changed: " + statusMessage.message);
-        console.log(statusMessage);
-        this._connectStatusText.text(statusMessage.message);
-        this._connectStatusText.css('color', IA.util.iacolor_to_css(statusMessage.color));
+        let stateMessage = this.ia.connectionStateMessage;
+        console.log("State changed: " + stateMessage.message);
+        // console.log(statusMessage);
+        this._connectStatusText.text(stateMessage.message);
+        this._connectStatusText.css('color', IA.util.iacolor_to_css(stateMessage.color));
 
         let joiningOrJoinedRoom = this._isJoiningOrJoinedRoom();
         
@@ -183,7 +212,7 @@ class IAExt {
     }
     
     _isJoiningOrJoinedRoom() {
-        let state = this.ia.ConnectionState;
+        let state = this.ia.connectionState;
         return state == "JoiningRoom" || state == "JoinedRoom";
     }
 
@@ -199,11 +228,11 @@ class IAExt {
     /** Create Room/Disconnect button logic */
     _handleConnectBtn() {
         if (this._isJoiningOrJoinedRoom())
-            this.ia.Disconnect();
+            this.ia.disconnect();
         else
         {
             let roomName = $('input.ia-room-name').val();
-            this.ia.JoinOrCreateRoom(roomName);
+            this.ia.joinOrCreateRoom(roomName);
         }
     }
 
@@ -220,7 +249,7 @@ class IAExt {
     /** Send room password entered in the room password dialog to the IA Runtime API */
     _submitRoomPassword() {
         let pw = $('#pw-input-modal pw-input').val();
-        this.ia.ProvideRoomPassword(this._lastRoomPasswordUri, pw);
+        this.ia.provideRoomPassword(this._lastRoomPasswordUri, pw);
         this._passwordModal.modal('hide');
     }
 
@@ -234,7 +263,7 @@ class IAExt {
         let menu = this._vizSelect.find('.dropdown-menu');
         menu.empty();
 
-        this.ia.Scene.Visualizations.Keys
+        this.ia.scene.visualizations.keys
             .forEach(function(name) {
                 makeDropdownItem(name, () => $this.selectViz(name))
                     .appendTo(menu);
@@ -249,16 +278,20 @@ class IAExt {
         let $this = this;
         let menu = this._dataSourceSelect.find('.dropdown-menu');
         menu.empty();
+        menu.append($(`<h6 class='dropdown-header'>Active Data Sources:</h6>`));
 
         // cancel any previous operations retrieving the datasource list
         if (this._cancelToken)
             this._cancelToken.cancelled = true;
         let cancelToken = this._cancelToken = { cancelled : false }
 
-        this.ia.Scene.Database.Tables.Keys.forEach(tableName => {
-            let dataSrc = { name: tableName };
+        this.ia.scene.database.datasets.keys.forEach(datasetName => {
+            let dataSrc = { name: datasetName };
             menu.append($this._getDataSourceMenuItem(dataSrc));
         });
+
+        menu.append($(`<h6 class='dropdown-header'>Available Data Sources:</h6>`));
+
 
         this._pendingDataSources = this.integration.getDataSourcesAsync();
 
@@ -277,7 +310,7 @@ class IAExt {
     _getDataSourceMenuItem(dataSrc) {
         let $this = this;
         return makeDropdownItem(
-                dataSrc.name,
+                $('<span>').text(dataSrc.name).html(),
                 e => $this.setCurrentVisualizationDataSource(dataSrc));
     }
 
@@ -295,7 +328,7 @@ class IAExt {
         if (!viz)
             return;
         
-        viz.PrimaryAxes.TableName = dataSrc.name;
+        viz.axes.sourceDataset = dataSrc.name;
         this.integration.createTableForDataSource(dataSrc);
     }
 
@@ -314,24 +347,26 @@ class IAExt {
         let viz = this.getSelectedViz();
         if (viz)
         {
-            this._unregisterSelectedVizListener = viz.OnChanged(e => this._updateSelectedVizInfo(false, e));
+            this._unregisterSelectedVizListener = viz.onChanged(e => this._updateSelectedVizInfo(false, e));
 
             // Update Scene selection to follow this selection
-            this.ia.Scene.Selection.SetSingleValue(viz);
+            this.ia.scene.selection.setSingleValue(viz);
         }
         this._updateSelectedVizInfo(true);
     }
 
     /** Shortcut to retrieve the selected Visualizations from the internally stored name reference */
     getSelectedViz() {
-        return this.ia.Scene.Visualizations.Get(this._selectedVizName);
+        return this.ia.scene.visualizations.getKey(this._selectedVizName);
     }
 
     /** Update UI displaying info for the selected IA Visualizations */
     _updateSelectedVizInfo(fullRefresh, event) {
+        this._recordScrollPosition();
+
         let viz = this.getSelectedViz();
-        let vizName = viz ? viz.Name : '';
-        let vizLabel = viz ? viz.Name : '<No Visualization Selected>';
+        let vizName = viz ? viz.name : '';
+        let vizLabel = viz ? viz.name : '<No Visualization Selected>';
         console.log('Updating Info For Visualization: ' + vizLabel);
 
         // Disable form fields and labels
@@ -341,15 +376,36 @@ class IAExt {
         this._vizNameInput.val(vizName);
         this._vizNameText.text(vizLabel);    // Non-inputs should display a 'null' message
         
-        let tableName = viz ? viz.PrimaryAxes.TableName : '';
-        this._dataSourceSelect.find('button').text(tableName ? tableName : "<Select Data Source>");
+        let datasetName = viz ? viz.axes.sourceDataset : '';
+        this._dataSourceSelect.find('button').text(datasetName ? datasetName : "<Select Data Source>");
 
-        this._pointSizeSlider.val(this.ia.Scene.VizSettings.GetOrCreate().PointSize.Value);
+        this._updateSelectedDatasetInfo();
 
-        let colormapName = viz ? viz.ColormapName.Value : "<Colormap>";
+        this._pointSizeSlider.val(this.ia.scene.vizSettings.pointSize);
+
+        let colormapName = viz ? viz.colormapName : "<Colormap>";
         this._colormapSelect.find('button').text(colormapName)
         
         this._updateMappings(viz, fullRefresh);
+
+        this._restoreScrollPosition();
+    }
+
+    _updateSelectedDatasetInfo() {
+        let rows = '-';
+        let variables = '-';
+
+        let selected = this.getSelectedDataset();
+        if (selected.dataset)
+        {
+            rows = selected.dataset.rowCount;
+            if (rows == IA_MAX_ROWS_TO_LOAD)
+                rows = "<span class='error-text'>" + rows + "</span> (Dataset Truncated)"
+            variables = selected.dataset.variables.count;
+        }
+
+        this._datasetRowCountText.html(rows);
+        this._datasetVariableCountText.html(variables);
     }
 
     /** Refresh data in the  Axis=>Variable mappings table */
@@ -360,16 +416,16 @@ class IAExt {
             return;
         }
 
-        let primaryAxes = viz.PrimaryAxes;
+        let primaryAxes = viz.axes;
 
         let axes = fullRefresh
-            ? primaryAxes.Config.axes
+            ? primaryAxes.config.axes
             : this._axisMappingsTable.rows().data();
 
         for (let i=0; i<axes.length; i++)
         {
             let axis = axes[i];
-            let mapping = primaryAxes.GetMapping(axis.name);
+            let mapping = primaryAxes.getMapping(axis.name);
             axis.enabled = mapping ? mapping.enabled : false;
             axis.mapping = mapping ? mapping.variableName : "";
         }
@@ -392,37 +448,57 @@ class IAExt {
      */
     _getAxisMappingCell(axisMapping) {
         return `<div class="dropdown ia-axis-mapping">
-                    <button class="btn btn-block dropdown-toggle" aria-expanded="false" data-toggle="dropdown" type="button">
+                    <button class="btn btn-block dropdown-toggle" aria-expanded="false" data-toggle="modal" data-target="#variable-select-modal" type="button">
                         ${axisMapping ? axisMapping : ""}
                     </button>
-                    <div class="dropdown-menu"></div>
                 </div>`;
+        // <div className="dropdown-menu"></div>
+    }
+
+    getSelectedDataset() {
+        let result = {}
+        let viz = result.viz = this.getSelectedViz();
+        if (viz)
+        {
+            let db = this.ia.scene.database;
+            result.dataset = db.get(viz.axes.sourceDataset);
+            result.secondaryDataset = db.get(viz.secondaryAxes.sourceDataset);
+        }
+        return result;
     }
 
     /** Update a dropdown menu of available data source columns/variables
      * based on the currently referenced table
      */
-    _updateVariableSelect(variableSelect, axisName) {
-        let menu = variableSelect.children('.dropdown-menu');
+    _updateVariableSelect(axisName) {
+        this._recordScrollPosition();
+
+        let menu = $('#variable-select-modal').find('.modal-body');
         menu.empty();
 
-        makeDropdownItem('&lt;Unmapped&gt;', e => viz.ClearMapping(axisName))
+        let selected = this.getSelectedDataset();
+
+        makeDropdownItem('&lt;Unmapped&gt;', e => {
+            selected.viz.clearMapping(axisName)
+            this._closeVariableSelect();
+        })
             .appendTo(menu);
 
-        let viz = this.getSelectedViz();
-        if (!viz)
+
+        if (!selected.dataset)
             return;
 
-        let table = this.ia.Scene.Database.Tables.Get(viz.PrimaryAxes.TableName);
-
-        if (!table)
-            return;
-
-
-        table.Columns.Keys.forEach(column => {
-                makeDropdownItem(column, () => viz.MapAxis(axisName, column))
+        selected.dataset.variables.keys.forEach(variable => {
+                makeDropdownItem(variable, () => {
+                    selected.viz.mapAxis(axisName, variable)
+                    this._closeVariableSelect();
+                })
                     .appendTo(menu);
             });
+    }
+
+    _closeVariableSelect() {
+        $("#variable-select-modal").modal('hide');
     }
 
     /** Update the dropdown menu of available colormaps */
@@ -434,10 +510,10 @@ class IAExt {
         if (!viz)
             return;
 
-        this.ia.Scene.Colormaps.AvailableColormapNames
+        this.ia.scene.colormaps.availableColormapNames
             .forEach(name => {
                 makeDropdownItem(name, () => {
-                        viz.ColormapName.Set(name);
+                        viz.colormapName = name;
                     })
                     .appendTo(menu);
             });
@@ -448,23 +524,23 @@ class IAExt {
         console.log("Create new visualization");
         let vizName = this._getUniqueVisualizationName();
         let viz = this.ia.create.ScatterViz(vizName);
-        this.ia.Scene.Visualizations.Add(viz);
-        this.selectViz(viz.Name);
+        this.ia.scene.visualizations.add(viz);
+        this.selectViz(viz.name);
     }
 
     /** Removes the selected viz from the scene */
     removeSelectedViz() {
         console.log("Remove visualization: " + this._selectedVizName);
         if (this._selectedVizName)
-            this.ia.Scene.Visualizations.RemoveKey(this._selectedVizName);
+            this.ia.scene.visualizations.removeKey(this._selectedVizName);
     }
 
     /** Find the next available default name for a new Visualization */
     _getUniqueVisualizationName() {
-        let vizs = this.ia.Scene.Visualizations;
+        let vizs = this.ia.scene.visualizations;
         
         let baseName = "New Visualization";
-        if (!vizs.ContainsKey(baseName))
+        if (!vizs.containsKey(baseName))
             return baseName;
         
         baseName = baseName + " ";
@@ -472,7 +548,7 @@ class IAExt {
         for (let i=1; i<1000; i++)
         {
             let name = baseName + i;
-            if (!vizs.ContainsKey(name))
+            if (!vizs.containsKey(name))
                 return name;
         }
         throw "Too many visualizations";
@@ -486,8 +562,8 @@ class IAExt {
         if (viz)
             return;
 
-        let vizs = this.ia.Scene.Visualizations;
-        this.selectViz(vizs.Keys[0]);  // select first visualization by default
+        let vizs = this.ia.scene.visualizations;
+        this.selectViz(vizs.keys[0]);  // select first visualization by default
     }
 
     /** Sets the Name property for the selected IA Visualization */
@@ -496,16 +572,21 @@ class IAExt {
             return;
         
         // Cancel if a plot already has this name
-        if (this.ia.Scene.Visualizations.ContainsKey(name))
+        if (this.ia.scene.visualizations.containsKey(name))
             return;
         
         let viz = this.getSelectedViz();
         if (viz)
         {
-            viz.Name = name;
+            viz.name = name;
             this._selectedVizName = name;
             console.log("Todo rename listener");
         }
+    }
+
+    confirmResetScene() {
+        if (confirm("Are you sure you would like to clear this scene and all of its existing visualizations?"))
+            this.ia.syncEngine.reset();
     }
 }
 
@@ -517,7 +598,7 @@ class IAExt {
  */
 class IAExtTableauIntegration {
     constructor() {
-        this._tableBindings = {}
+        this._datasetBindings = {}
     }
 
     /** Initialize the Tableau dashboard extension API.
@@ -527,13 +608,13 @@ class IAExtTableauIntegration {
     init(ia) {
         let $this = this;
         this.ia = ia;
-        this.database = ia.Scene.Database;
+        this.database = ia.scene.database;
 
         console.log("Initializing Tableau JS");
         tableau.extensions.initializeAsync().then(function() {
             console.log("Tableau JS Initialized");
             
-            $this.database.Tables.OnChanged(() => $this._updateBindings());
+            $this.database.datasets.onChanged(() => $this._updateBindings());
         });
         
         this._updateBindings();
@@ -546,30 +627,30 @@ class IAExtTableauIntegration {
      * Any additional properties are written as json to the IA table's SourceInfo property
      */
     createTableForDataSource(dataSrc) {
-        let tableName = dataSrc.name;
-        let table = this.database.Get(tableName);
+        let datasetName = dataSrc.name;
+        let dataset = this.database.get(datasetName);
         
-        if (!table)
+        if (!dataset)
         {
-            table = this.ia.create.IADataTable(tableName)
-            this.database.Tables.Add(table);
+            dataset = this.ia.create.Dataset(datasetName)
+            this.database.datasets.add(dataset);
         }
         
         // Return early if table is already bound to this worksheet
-        if (table.SourceType == IATableauSourceType)
+        if (dataset.sourceType == IATableauSourceType)
         {
-            let srcInfo = parseJSON(table.SourceInfo);
+            let srcInfo = parseJSON(dataset.sourceInfo);
             if (srcInfo && srcInfo.worksheetName == dataSrc.worksheetName)
                 return;
         }
 
-        table.SourceType = dataSrc.type;
+        dataset.sourceType = dataSrc.type;
 
         delete dataSrc.name;
         delete dataSrc.type;
 
         // Write any remaining properties to SourceInfo as JSON
-        table.SourceInfo = $.isEmptyObject(dataSrc) ? "" : JSON.stringify(dataSrc);
+        dataset.sourceInfo = $.isEmptyObject(dataSrc) ? "" : JSON.stringify(dataSrc);
 
         this._updateBindings();
         // TODO handle SourceType or SourceInfo change callback
@@ -580,20 +661,20 @@ class IAExtTableauIntegration {
      * whose source type is equal to `IATableauSourceType`
      */
     _updateBindings() {
-        let tables = this.database.Tables;
-        tables.Keys.forEach(name => {
+        let datasets = this.database.datasets;
+        datasets.keys.forEach(name => {
             console.log("Processing table " + name);
-            let table = tables[name];
+            let dataset = datasets[name];
             
             // check if binding already exists
-            if (this._tableBindings[name])
+            if (this._datasetBindings[name])
                 return;
             
-            let srcType = table.SourceType;
+            let srcType = dataset.sourceType;
             if (srcType != IATableauSourceType)
                 return;
             
-            let src = parseJSON(table.SourceInfo);
+            let src = parseJSON(dataset.sourceInfo);
             if (!src || !src.worksheetName)
                 return;
 
@@ -604,14 +685,8 @@ class IAExtTableauIntegration {
                 return;
             }
 
-            if (!src.logicalTableId)
-            {
-                console.log("  => No logical table Id specified")
-                return;
-            }
-
-            let binding = new IATableauDataSourceBinding(worksheet, src.logicalTableId, this.ia, table)
-            this._tableBindings[table.Name] = binding;
+            let binding = new IATableauDataSourceBinding(worksheet, src.logicalTableId, this.ia, dataset)
+            this._datasetBindings[dataset.name] = binding;
             
             // TODO handle table or worksheet renaming
         });
@@ -635,7 +710,12 @@ class IAExtTableauIntegration {
                     worksheetName : worksheet.name,
                     logicalTableId : table.id
                 };
-            }));
+            })
+                .concat({
+                    name : worksheet.name + " (Summary Data)",
+                    type : IATableauSourceType,
+                    worksheetName : worksheet.name,
+                }));
     }
 
     _getTableauWorksheet(sheetName) {
@@ -654,7 +734,7 @@ function parseJSON(jsonStr) {
     try {
         return JSON.parse(jsonStr);
     }
-    catch {
+    catch (error) {
         return null;
     }
 }
@@ -703,19 +783,27 @@ class IATableauDataSourceBinding {
         this._unregisterListeners();
 
         let $this = this;
-
-        let options = {
-            includeAllColumns:true,     // We want to make all columns available to Visualize // TODO only load columns which have been mapped to an axis
-            maxRows: 2000       // AM DEBUGGING We get browser memory errors if too many rows are loaded
-        };
-        this.worksheet.getUnderlyingTableDataAsync(this.tableId, options)
+        this.getDataAsync()
             .then(table => $this.setTableData(table))
             .then(() => $this._registerListeners())
     }
 
+    getDataAsync() {
+        let options = {
+            includeAllColumns:true,     // We want to make all columns available to Visualize // TODO only load columns which have been mapped to an axis
+            maxRows: 2000       // AM DEBUGGING We get browser memory errors if too many rows are loaded
+        };
+
+        if (this.tableId)
+            return this.worksheet.getUnderlyingTableDataAsync(this.tableId, options)
+        else
+            return this.worksheet.getSummaryDataAsync(options)
+
+    }
+
     /** Convert Tableau Worksheet data into IA data table format, and apply to the bound IA Data Table */
     setTableData(worksheetData) {
-        console.log("Data table update: " + this.table.Name);
+        console.log("Data table update: " + this.table.name);
         
         let dataRows = worksheetData.data;
 
@@ -738,7 +826,7 @@ class IATableauDataSourceBinding {
             columns : columns.filter(c => c)    // remove null columns
         }
         
-        this.table.SetData(table);
+        this.table.setData(table);
     }
     
 }
@@ -752,7 +840,7 @@ function makeDropdownItem(name, callback) {
 
 /** Lookup for translating Tableau column data types to equivalent IA column types */
 Tableau2IADataTypeLookup = {
-    'bool' : 'int',
+    'bool' : 'bool',
     'float' : 'float',
     'int' : 'int',
     'date' : 'timestamp',
@@ -761,13 +849,20 @@ Tableau2IADataTypeLookup = {
     'spatial' : null,
 }
 
-console.log("Running IA script");
+console.log("IA Extension");
+
+// $(window).on('load', function() {
+//
+// });
 
 /** Once the Immersion Analytics Runtime library is ready, init the extension logic */
-IA.OnReady(() => {
-    console.log("IA ready");
-    jQuery(function($) {
-        window.$ = $;
+$(function() {
+    $('#loading-spinner-modal').modal('show');
+
+    IA.onReady(() => {
+        console.log("IA ready");
+        $('#loading-spinner-modal').modal('hide');
+
         window.ia_ext = new IAExt(new IAExtTableauIntegration());
     });
 });

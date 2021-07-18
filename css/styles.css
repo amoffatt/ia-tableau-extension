@@ -5,6 +5,7 @@ body {
 .btn {
   font-size: 12px;
   line-height: 1.2;
+  padding: 2px 4px;
 }
 
 .btn span {
@@ -18,29 +19,42 @@ body {
   vertical-align: middle;
 }
 
+.container-fluid {
+  padding-left: 2px;
+  padding-right: 2px;
+}
+
+.modal-footer {
+  flex-wrap: nowrap;
+}
+
+.modal-footer .button-group {
+  display: flex;
+}
+
 .ia-template {
   display: none;
 }
 
 .table td, .table th{
-  padding: .4rem .6rem;
+  padding: .3rem .1rem;
   vertical-align: middle;
 }
 
 .text-input-with-dropdown button {
   padding: 0 .7em;
-  border-radius: 0 5px 5px 0;
+  /*border-radius: 0 5px 5px 0;*/
   line-height: 1.95em;
 }
 
 .text-input-with-dropdown input {
-  border-radius: 5px 0 0 5px;
+  /*border-radius: 5px 0 0 5px;*/
 }
 
 input[type="text"], input[type="password"] {
   border: none;
   border-bottom: .5px solid #bbb;
-  border-radius: 0;
+  /*border-radius: 0;*/
   line-height: 2em;
 }
 
@@ -62,13 +76,13 @@ input[type="text"], input[type="password"] {
 
 #ia-header {
   margin: 0px;
+  margin-bottom: 6px;
+  padding-bottom: 2px;
   border-bottom: 1px solid #aaa;
-  margin-bottom: 20px;
 }
 
 .icon-btn {
   background: none;
-  color: black;
   border: none;
   font-size: 24px;
   padding: 0 4px;
@@ -82,6 +96,10 @@ input[type="text"], input[type="password"] {
 .remove-btn {
   color: red;
   font-size: 22px;
+}
+
+.error-text {
+  color: red;
 }
 
 .refresh-btn {
@@ -112,6 +130,89 @@ tr.connected-row td {
   color: #aaa;
 }
 
+#ia-axis-mappings {
+  font-size: .9rem;
+}
+
 #ia-axis-mappings .dataTables_filter {
   float: right !important;
+}
+
+.ia-axis-mapping .dropdown-menu {
+  font-size: 1em;
+  max-height: 20em;
+  overflow-y: auto;
+}
+
+.ia-axis-mapping .dropdown-item {
+}
+
+
+#loading-spinner-modal .modal-dialog {
+  display: table;
+  position: relative;
+  margin: 0 auto;
+  top: calc(50% - 24px);
+}
+
+#loading-spinner-modal .modal-content {
+  text-align: center;
+  background-color: transparent;
+  border: none;
+  color: #ccc;
+  font-size: 30px;
+}
+
+#loading-spinner-modal .loading-spinner-icon {
+  /*font-size: 30px;*/
+}
+
+#loading-spinner-modal .loading-msg {
+  font-weight: 100;
+  margin-bottom: 20px;
+}
+
+.ion-load-c {
+  display: inline-block;
+  animation: spin 1.5s infinite linear;
+}
+
+@keyframes spin {
+  from {
+    transform:rotate(0deg);
+  }
+  to {
+    transform:rotate(360deg);
+  }
+}
+
+.ia-show-console {
+  font-size: 14px;
+}
+
+#console-out {
+  font-size: 10px;
+  max-width: 98vw;
+}
+
+#console-out .ia-copy-content {
+  display: block;
+  position: absolute;
+  top: 0;
+  right: 0;
+  font-size: 20px;
+}
+
+#console-out p {
+  margin-bottom: .4em;
+}
+/*#loading-spinner-modal {*/
+/*  max-height: 50vh;*/
+/*}*/
+
+.modal-backdrop {
+  background-color: rgba(1,1,1,.5) !important;
+}
+
+#variable-select-modal {
 }

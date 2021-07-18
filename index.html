@@ -21,21 +21,30 @@
 <body>
     <div id="ia-main" class="flex-row" style="width: 100%;background: #ffffff;height: 50vh;">
         <div class="container-fluid text-right d-flex justify-content-between" id="ia-header">
-            <div class="d-flex align-items-center" id="ia-connect-overview"><button class="btn btn-primary d-xl-flex align-items-xl-center" type="button" data-target="#ia-connect-modal" data-toggle="modal"><i class="material-icons">cast_connected</i><span>&nbsp;Configure Connection</span></button>
-                <div style="margin: 0 1em;"><span>Connection Status:&nbsp;</span><span class="ia-connect-status-value"></span></div>
+            <div class="d-flex align-items-center" id="ia-connect-overview">
+                <button class="btn btn-primary d-xl-flex align-items-xl-center" type="button" data-target="#ia-connect-modal" data-toggle="modal"><i class="material-icons">cast_connected</i><span>&nbsp;Connect</span></button>
+                <button class="btn icon-btn d-xl-flex ml-1 ia-show-console" type="button" data-target="#console-out-modal" data-toggle="modal"><i class="material-icons">personal_video</i></i></button>
+                <div class="mr-1 ml-1"><span class="d-inline-block text-nowrap">Connection Status:</span>&nbsp;<span class="ia-connect-status-value"></span></div>
             </div><img class="\" src="img/ia-logo-and-text.png" width="150px" style="height: 100%;">
         </div>
         <div class="container-fluid">
-            <table class="table">
+            <table class="table table-borderless">
                 <thead>
                     <tr>
                         <th colspan="2">
-                            <div class="dropdown d-inline-block" id="ia-viz-select">
-                                <button class="btn btn-primary dropdown-toggle ia-viz-name" aria-expanded="false" data-toggle="dropdown" type="button">&nbsp;</button>
-                                <div class="dropdown-menu"></div>
+                            <div class="d-flex justify-content-between">
+                                <div>
+                                    <div class="dropdown d-inline-block" id="ia-viz-select">
+                                        <button class="btn btn-primary dropdown-toggle ia-viz-name" aria-expanded="false" data-toggle="dropdown" type="button">&nbsp;</button>
+                                        <div class="dropdown-menu"></div>
+                                    </div>
+                                    <button class="btn btn-primary add-btn icon-btn" id="ia-new-viz" type="button"><i class="icon ion-plus"></i></button>
+                                    <button class="btn btn-primary remove-btn icon-btn" id="ia-remove-viz" type="button"><i class="icon ion-close-circled"></i></button>
+                                </div>
+                                <div>
+                                    <button class="btn btn-light ia-reset-scene" type="button"><i class="icon ion-android-delete"></i> Reset Scene</button>
+                                </div>
                             </div>
-                            <button class="btn btn-primary add-btn icon-btn" id="ia-new-viz" type="button"><i class="icon ion-plus"></i></button>
-                            <button class="btn btn-primary remove-btn icon-btn" id="ia-remove-viz" type="button"><i class="icon ion-close-circled"></i></button>
                         </th>
                     </tr>
                 </thead>
@@ -51,8 +60,14 @@
                         <td>
                             <div class="dropdown" id="ia-datasource-select">
                                 <button class="btn btn-block btn-primary dropdown-toggle" aria-expanded="false" data-toggle="dropdown" type="button"></button>
-                                <div class="dropdown-menu">
-        <!--                            <a class="dropdown-item" href="#">First Item</a>-->
+                                <div class="dropdown-menu"></div>
+                            </div>
+                            <div class="d-flex justify-content-between">
+                                <div>
+<!--                                    <i class="ion ion-load-c ia-dataset-spinner"></i>-->
+                                </div>
+                                <div>
+                                    Rows: <span class="ia-dataset-row-count"></span>, Variables: <span class="ia-dataset-var-count"></span>
                                 </div>
                             </div>
                         </td>
@@ -83,6 +98,18 @@
                         </tr>
                     </thead>
                 </table>
+            </div>
+        </div>
+    </div>
+    <div role="dialog" tabindex="-1" class="modal" id="variable-select-modal">
+        <div class="modal-dialog modal-sm" role="document">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h6 class="modal-title">Select Variable</h6>
+                    <button type="button" class="close" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">×</span></button>
+                </div>
+                <div class="modal-body">
+                </div>
             </div>
         </div>
     </div>
@@ -146,9 +173,9 @@
                     <div>
                         <span>Connection Status:&nbsp;</span><span class="ia-connect-status-value"></span>
                     </div>
-                    <div>
+                    <div class="button-group">
                         <button class="btn btn-light ia-connect-btn" type="button">Join or Create Room</button>
-                        <button class="btn btn-light" type="button" data-dismiss="modal">Close</button>
+                        <button class="btn btn-primary" type="button" data-dismiss="modal">Close</button>
                     </div>
                 </div>
             </div>
@@ -173,8 +200,40 @@
             </div>
         </div>
     </div>
+    <div role="dialog" tabindex="-1" class="modal fade" id="console-out-modal">
+        <div class="modal-dialog" role="document">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h6 class="modal-title">Output Console</h6><button type="button" class="close" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">×</span></button>
+                </div>
+                <div class="modal-body" id="main-console-display">
+                    <div class="card card-body text-monospace overflow-auto" id="console-out">
+                        <button class="btn btn-light icon-btn ia-copy-content" type="button"><i class="ion ion-ios-copy-outline"></i></button>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-light" type="button" data-dismiss="modal">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="modal" id="loading-spinner-modal" data-backdrop="static" data-keyboard="false" tabindex="-1">
+        <div class="modal-dialog modal-sm modal-dialog-scrollable">
+            <div class="modal-content text-nowrap">
+                <div class="loading-spinner-icon"><i class="icon ion-load-c"></i></div>
+                <div class="loading-msg">Loading</div>
+                <div>
+                    <button class="btn ia-show-console" type="button" data-toggle="collapse" data-target="#loading-console-display"><i class="material-icons">personal_video</i></button>
+                </div>
+                <div class="collapse" id="loading-console-display">
+                    <!-- Content moved here from main console display -->
+                </div>
+            </div>
+        </div>
+    </div>
     <script src="js/jquery.min.js"></script>
     <script src="bootstrap/js/bootstrap.min.js"></script>
+    <script src="js/init-output-console.js"></script>
 
     <!-- Include the Tableau Extensions library so we can communicate with Tableau -->
     <script src="js/tableau.extensions.1.latest.js"></script>
