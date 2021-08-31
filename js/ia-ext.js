@@ -811,33 +811,21 @@ class IATableauDataSourceBinding {
         };
 
         if (this.tableId)
-            return this.worksheet.getUnderlyingTableDataAsync(this.tableId, options)
+            return this.worksheet
+                .getUnderlyingTableDataAsync(this.tableId, options)
+                .then(formatUnderlyingTableData);
         else
-            return this.worksheet.getSummaryDataAsync(options)
+            return this.worksheet
+                .getSummaryDataAsync(options)
+                .then(formatSummaryTableData)
 
     }
 
     /** Convert Tableau Worksheet data into IA data table format, and apply to the bound IA Data Table */
-    setTableData(worksheetData) {
-        console.log("Data table update: " + this.table.name);
-        
-        let dataRows = worksheetData.data;
+    setTableData(dataColumns) {
+        console.log("Dataset update: " + this.datasetName);
 
-        let columns = worksheetData.columns.map(function(column) {
-            let type = Tableau2IADataTypeLookup[column.dataType];
-            if (!type)
-                return null;
-            
-            let index = column.index;
-            
-            return {
-                name : column.fieldName,
-                type : type,
-                data : dataRows.map(row => row[index].nativeValue)
-            }
-        });
-        
-        let table = {
+        let dataTable = {
             name : this.datasetName,
             columns : dataColumns.filter(c => c)    // remove null columns
         }
@@ -871,6 +859,101 @@ Tableau2IADataTypeLookup = {
 }
 
 console.log("IA Extension");
+
+function formatUnderlyingTableData(worksheetData) {
+    let dataRows = worksheetData.data;
+
+    const dataColumns = worksheetData.columns.map(function(column) {
+        let type = Tableau2IADataTypeLookup[column.dataType];
+        if (!type)
+            return null;
+
+        let index = column.index;
+
+        return {
+            name : column.fieldName,
+            type : type,
+            data : dataRows.map(row => row[index].nativeValue)
+        }
+    });
+    return dataColumns;
+}
+
+function formatSummaryTableData(worksheetSummaryData) {
+    const {data, columns} = worksheetSummaryData;
+
+    const dimensions = {}
+    let measureNamesIndex = -1;
+    let measureValuesIndex = -1;
+
+    columns.forEach(column => {
+        const {fieldName, index} = column;
+        if (fieldName == "Measure Names")
+            measureNamesIndex = index;
+        else if (fieldName == "Measure Values")
+            measureValuesIndex = index;
+        else {
+            dimensions[index] = fieldName;
+        }
+    });
+
+    const hasMeasures = measureNamesIndex >=0 && measureValuesIndex >= 0;
+    // OPTIMIZE if no measures are present, we can shortcut to
+    // use formatUnderlyingTableData() instead
+
+    const itemsLookup = {};
+
+    // Dictionary of (column name => column type)
+    const resultColumnNameTypeLookup = {};
+    Object.entries(dimensions).forEach(entry => {
+        const [index, name] = entry;
+        // Add dimensions to the result column name => type dictionary
+        resultColumnNameTypeLookup[name] = columns[index].dataType;
+    });
+
+    data.forEach(row => {
+        // Build a unique key identifying this item based on its dimensions
+        let itemKey = "";
+        for (let index in dimensions)
+            itemKey += '{{' + row[index].formattedValue + '}}';
+
+        // get or create a new object for this unique item
+        let item = itemsLookup[itemKey];
+        if (!item)
+        {
+            item = itemsLookup[itemKey] = {};
+
+            // Store dimensions values in the newly created item
+            for (let index in dimensions)
+                item[dimensions[index]] = row[index].nativeValue;
+        }
+
+        if (!hasMeasures)
+            return;
+
+        // Store the measure value from this data row
+        const measureName = row[measureNamesIndex].formattedValue;
+        const measureValue = row[measureValuesIndex].nativeValue;
+        item[measureName] = measureValue;
+
+        resultColumnNameTypeLookup[measureName] = 'float';   // Add measure to the result column name dict if not already present
+    });
+
+    const itemsArray = Object.values(itemsLookup);
+
+    return Object.entries(resultColumnNameTypeLookup).map(entry => {
+        let [columnName, columnType] = entry;
+        columnType = Tableau2IADataTypeLookup[columnType];
+        if (!columnType)
+            return null;
+
+        return {
+            name: columnName,
+            type: columnType,
+            data: itemsArray.map(item => item[columnName])
+        };
+    });
+}
 
 // $(window).on('load', function() {
 //
