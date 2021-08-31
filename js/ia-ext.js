@@ -661,7 +661,8 @@ class IAExtTableauIntegration {
      * whose source type is equal to `IATableauSourceType`
      */
     _updateBindings() {
-        let datasets = this.database.datasets;
+        const datasets = this.database.datasets;
+
         datasets.keys.forEach(name => {
             console.log("Processing table " + name);
             let dataset = datasets[name];
@@ -685,11 +686,21 @@ class IAExtTableauIntegration {
                 return;
             }
 
-            let binding = new IATableauDataSourceBinding(worksheet, src.logicalTableId, this.ia, dataset)
-            this._datasetBindings[dataset.name] = binding;
+            let binding = new IATableauDataSourceBinding(datasets, worksheet, src.logicalTableId, name);
+            this._datasetBindings[name] = binding;
             
             // TODO handle table or worksheet renaming
         });
+
+        // Remove inactive bindings
+        for (let name in this._datasetBindings) {
+            if (datasets.containsKey(name))
+                continue;
+
+            const binding = this._datasetBindings[name];
+            binding.dispose();
+            delete this._datasetBindings[name];
+        }
     }
 
     /** Compile all Worksheet LogicalTables available in this dashboard */
@@ -747,14 +758,19 @@ function parseJSON(jsonStr) {
 class IATableauDataSourceBinding {
     // TODO dispose this, or don't update when a table is not currently referenced?
     
-    constructor(tableauWorksheet, logicalTableId, ia, table)
+    constructor(allDatasets, tableauWorksheet, logicalTableId, datasetName)
     {
+        this.allDatasets = allDatasets;
         this.worksheet = tableauWorksheet;
         this.tableId = logicalTableId;
-        this.table = table;
+        this.datasetName = datasetName;
         this._unregisterListenerFunctions = [];
-        console.log("Initializing data binding for " + table.Name);
+        console.log("Initializing data binding for " + datasetName);
         this.updateData();
+    }
+
+    dispose() {
+        this._unregisterListeners();
     }
 
     /** Unregister selection+filter change listener */
@@ -822,11 +838,16 @@ class IATableauDataSourceBinding {
         });
         
         let table = {
-            name : this.worksheet.name,
-            columns : columns.filter(c => c)    // remove null columns
+            name : this.datasetName,
+            columns : dataColumns.filter(c => c)    // remove null columns
         }
-        
-        this.table.setData(table);
+
+        const dataset = this.allDatasets.getKey(this.datasetName);
+        if (!dataset){
+            console.error("Warning: trying to update non-existing dataset: " + this.datasetName);
+            return;
+        }
+        dataset.setData(dataTable);
     }
     
 }
